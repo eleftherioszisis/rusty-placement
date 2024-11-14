@@ -1,5 +1,4 @@
-from cell_placement._algorithms import uniform
-
+from rusty_placement._algorithms_impl import uniform
 
 def create_cell_positions(density, density_factor):
     """Create cell positions given cell density volumetric data (using uniform distribution).

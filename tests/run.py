@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from cell_placement import create_cell_positions
+from rusty_placement.main import create_cell_positions
 import voxcell
 
 
