@@ -10,16 +10,11 @@ fn choose_voxel_index(
     cumulative_probabilities: &Vec<f64>,
     voxel_indices: &Vec<usize>
 ) -> usize {
-
-    let index = cumulative_probabilities.binary_search_by(
-        |p| p.partial_cmp(&uniform_value).unwrap_or(std::cmp::Ordering::Greater)
-    );
-
-    match index {
-        Ok(i) => return i,
-        Err(_) => return 0
-    }
-
+    cumulative_probabilities
+        .binary_search_by(
+            |p| p.partial_cmp(&uniform_value).unwrap_or(std::cmp::Ordering::Greater)
+        )
+        .unwrap_or_else(|_| 0)
 }
 
 
@@ -32,11 +27,16 @@ fn uniform(
 
     let factor = 1e-9 * voxel_dimensions.iter().copied().product::<f64>();
 
-    let (nonzero_voxel_indices, nonzero_voxel_counts): (Vec<usize>, Vec<f64>)= density
+    let (nonzero_voxel_indices, nonzero_voxel_counts): (Vec<_>, Vec<_>)= density
         .iter()
         .enumerate()
-        .filter(|&(_, &value)| value > 0.0)
-        .map(|(i, value)| (i, value * factor) )
+        .filter_map(|(i, &value)|
+            if value > 0.0 {
+                Some((i, value * factor))
+            } else {
+                None
+            }
+        )
         .unzip();
 
     let total_count: f64 = nonzero_voxel_counts.iter().sum();
@@ -62,7 +62,7 @@ fn uniform(
 
     for index in 0..n_positions {
 
-        let uniform_sample = rng.gen();
+        let uniform_sample = rng.gen::<f64>();
 
         let voxel_index = choose_voxel_index(
             uniform_sample,
@@ -70,13 +70,13 @@ fn uniform(
             &nonzero_voxel_indices,
         );
 
-        let i: usize = voxel_index % &nx;
-        let j: usize = ((voxel_index - &i) / &nx ) % &ny;
-        let k: usize = ((voxel_index - &i) / &nx - &j) / &ny; 
-        
-        positions[(index, 0)] = &offset[0] + (i as f64) + rng.gen::<f64>();
-        positions[(index, 1)] = &offset[1] + (j as f64) + rng.gen::<f64>();
-        positions[(index, 2)] = &offset[2] + (k as f64) + rng.gen::<f64>();
+        let i: usize = voxel_index % nx;
+        let j: usize = ((voxel_index - i) / nx ) % ny;
+        let k: usize = ((voxel_index - i) / nx - j) / &ny; 
+      
+        positions.row_mut(index)[0] = offset[0] + i as f64 + rng.gen::<f64>();
+        positions.row_mut(index)[1] = offset[1] + j as f64 + rng.gen::<f64>();
+        positions.row_mut(index)[2] = offset[2] + k as f64 + rng.gen::<f64>();
 
     }
 
