@@ -1,7 +1,8 @@
 use rand::{Rng};
 
-use numpy::ndarray::{Array2, Array3, ArrayView1, ArrayView3};
-use numpy::{IntoPyArray, PyArray1, PyArray2,  PyArray3, PyReadonlyArray1, PyReadonlyArray3};
+use numpy::ndarray::{Array2, ArrayView1, ArrayView3, Axis};
+use numpy::{IntoPyArray, PyArray2, PyReadonlyArray1, PyReadonlyArray3};
+use rayon::prelude::*;
 use pyo3::{pymodule, types::PyModule, PyResult, Python, Bound};
 
 
@@ -41,7 +42,7 @@ fn uniform(
 
     let total_count: f64 = nonzero_voxel_counts.iter().sum();
 
-    let cumulative_probabilities = nonzero_voxel_counts
+    let cumulative_probabilities: Vec<f64> = nonzero_voxel_counts
         .iter()
         .scan(0.0, |sum, &count| {
                 *sum += count / total_count;
@@ -50,35 +51,39 @@ fn uniform(
         )
         .collect();
 
-    let mut rng = rand::thread_rng();
-
     let n_positions = total_count.round() as usize;
 
     let nx = density.shape()[0];
     let ny = density.shape()[1];
     let nz = density.shape()[2];
 
-    let mut positions = Array2::<f64>::zeros((n_positions, 3));
+    let vec_positions: Vec<f64> = (0..n_positions)
+        .into_par_iter()
+        .flat_map(
+            |_| {
+                let mut rng = rand::thread_rng();
+                let uniform_sample = rng.gen::<f64>();
 
-    for index in 0..n_positions {
+                let voxel_index = choose_voxel_index(
+                    uniform_sample,
+                    &cumulative_probabilities,
+                    &nonzero_voxel_indices,
+                );
 
-        let uniform_sample = rng.gen::<f64>();
+                let i: usize = voxel_index % nx;
+                let j: usize = ((voxel_index - i) / nx ) % ny;
+                let k: usize = ((voxel_index - i) / nx - j) / &ny;
 
-        let voxel_index = choose_voxel_index(
-            uniform_sample,
-            &cumulative_probabilities,
-            &nonzero_voxel_indices,
-        );
+                [
+                    offset[0] + i as f64 + rng.gen::<f64>(),
+                    offset[1] + j as f64 + rng.gen::<f64>(),
+                    offset[2] + k as f64 + rng.gen::<f64>(),
+                ]
+            }
+        )
+        .collect();
 
-        let i: usize = voxel_index % nx;
-        let j: usize = ((voxel_index - i) / nx ) % ny;
-        let k: usize = ((voxel_index - i) / nx - j) / &ny; 
-      
-        positions.row_mut(index)[0] = offset[0] + i as f64 + rng.gen::<f64>();
-        positions.row_mut(index)[1] = offset[1] + j as f64 + rng.gen::<f64>();
-        positions.row_mut(index)[2] = offset[2] + k as f64 + rng.gen::<f64>();
-
-    }
+    let positions = Array2::<f64>::from_shape_vec((n_positions, 3), vec_positions).unwrap();
 
     positions
 
