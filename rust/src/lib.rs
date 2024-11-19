@@ -42,14 +42,17 @@ fn uniform(
 
     let total_count: f64 = nonzero_voxel_counts.iter().sum();
 
-    let cumulative_probabilities: Vec<f64> = nonzero_voxel_counts
-        .iter()
-        .scan(0.0, |sum, &count| {
-                *sum += count / total_count;
-                Some(*sum)
-            }
-        )
-        .collect();
+    let mut cumulative_probabilities: Vec<f64> = Vec::with_capacity(nonzero_voxel_counts.len());
+
+    cumulative_probabilities.extend(
+        nonzero_voxel_counts
+            .iter()
+            .scan(0.0, |sum, &count| {
+                    *sum += count / total_count;
+                    Some(*sum)
+                }
+            )
+    );
 
     let n_positions = total_count.round() as usize;
 
@@ -57,7 +60,10 @@ fn uniform(
     let ny = density.shape()[1];
     let nz = density.shape()[2];
 
-    let vec_positions: Vec<f64> = (0..n_positions)
+    let mut vec_positions = Vec::<f64>::with_capacity(3 * n_positions);
+
+    vec_positions.par_extend(
+        (0..n_positions)
         .into_par_iter()
         .flat_map(
             |_| {
@@ -81,7 +87,7 @@ fn uniform(
                 ]
             }
         )
-        .collect();
+    );
 
     let positions = Array2::<f64>::from_shape_vec((n_positions, 3), vec_positions).unwrap();
 
